@@ -111,7 +111,148 @@ namespace kursovoiproekt.Tests
             var aprStats = items.FirstOrDefault(s => s.Month == "April");
             Assert.IsNotNull(aprStats);
             Assert.AreEqual(1, aprStats.HiredCount);
-            Assert.AreEqual(9, aprStats.AvgDays); // 10-1 дней = 9
+            Assert.AreEqual(9, aprStats.AvgDays); 
+        }
+    }
+}
+namespace kursovoiproekt.Tests
+{
+    [TestFixture]
+    public class AddEditAdWindowTests
+    {
+        private LaborExchangeContext _context;
+        private AddEditAdWindow _window;
+        private User _testUser;
+
+        [SetUp]
+        public void Setup()
+        {
+            var options = new DbContextOptionsBuilder<LaborExchangeContext>()
+                .UseInMemoryDatabase(databaseName: "TestLaborExchangeDb_AddEdit")
+                .Options;
+
+            _context = new LaborExchangeContext(options);
+
+            _context.JobAds.RemoveRange(_context.JobAds);
+            _context.Users.RemoveRange(_context.Users);
+            _context.SaveChanges();
+
+            _testUser = new User { Id = 1, Name = "Test User" };
+            _context.Users.Add(_testUser);
+            _context.SaveChanges();
+
+            _window = new AddEditAdWindow(_testUser);
+
+            SetPrivateField<TextBox>("TitleTextBox", _window, new TextBox());
+            SetPrivateField<TextBox>("DescriptionTextBox", _window, new TextBox());
+            SetPrivateField<TextBox>("ExperienceTextBox", _window, new TextBox());
+            SetPrivateField<ComboBox>("AdTypeComboBox", _window, new ComboBox());
+        }
+
+        private void SetPrivateField<T>(string fieldName, object obj, T value)
+        {
+            var field = typeof(AddEditAdWindow).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            field.SetValue(obj, value);
+        }
+
+        private T GetPrivateField<T>(string fieldName, object obj)
+        {
+            var field = typeof(AddEditAdWindow).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            return (T)field.GetValue(obj);
+        }
+
+        [Test]
+        public void SaveButton_Click_EmptyTitle_ShowsWarningAndDoesNotSave()
+        {
+            var titleBox = GetPrivateField<TextBox>("TitleTextBox", _window);
+            titleBox.Text = "";
+
+            var descriptionBox = GetPrivateField<TextBox>("DescriptionTextBox", _window);
+            descriptionBox.Text = "Some description";
+
+            var expBox = GetPrivateField<TextBox>("ExperienceTextBox", _window);
+            expBox.Text = "3";
+
+            var comboBox = GetPrivateField<ComboBox>("AdTypeComboBox", _window);
+            comboBox.Items.Add(new ComboBoxItem { Tag = "1", Content = "Type1" });
+            comboBox.SelectedIndex = 0;
+
+            bool messageShown = false;
+
+            _window.SaveButton_Click(null, null);
+
+            Assert.AreEqual(0, _context.JobAds.Count());
+            Assert.IsNull(_window.DialogResult);
+        }
+
+        [Test]
+        public void SaveButton_Click_InvalidExperience_ShowsWarningAndDoesNotSave()
+        {
+            var titleBox = GetPrivateField<TextBox>("TitleTextBox", _window);
+            titleBox.Text = "Title";
+
+            var descriptionBox = GetPrivateField<TextBox>("DescriptionTextBox", _window);
+            descriptionBox.Text = "Description";
+
+            var expBox = GetPrivateField<TextBox>("ExperienceTextBox", _window);
+            expBox.Text = "-1";
+
+            var comboBox = GetPrivateField<ComboBox>("AdTypeComboBox", _window);
+            comboBox.Items.Add(new ComboBoxItem { Tag = "1", Content = "Type1" });
+            comboBox.SelectedIndex = 0;
+
+            _window.SaveButton_Click(null, null);
+
+            Assert.AreEqual(0, _context.JobAds.Count());
+            Assert.IsNull(_window.DialogResult);
+        }
+
+        [Test]
+        public void SaveButton_Click_NoAdTypeSelected_ShowsWarningAndDoesNotSave()
+        {
+            var titleBox = GetPrivateField<TextBox>("TitleTextBox", _window);
+            titleBox.Text = "Title";
+
+            var descriptionBox = GetPrivateField<TextBox>("DescriptionTextBox", _window);
+            descriptionBox.Text = "Description";
+
+            var expBox = GetPrivateField<TextBox>("ExperienceTextBox", _window);
+            expBox.Text = "2";
+
+            var comboBox = GetPrivateField<ComboBox>("AdTypeComboBox", _window);
+
+            _window.SaveButton_Click(null, null);
+
+            Assert.AreEqual(0, _context.JobAds.Count());
+            Assert.IsNull(_window.DialogResult);
+        }
+
+        [Test]
+        public void SaveButton_Click_ValidData_AddsJobAdAndClosesWindow()
+        {
+            var titleBox = GetPrivateField<TextBox>("TitleTextBox", _window);
+            titleBox.Text = "New Job";
+
+            var descriptionBox = GetPrivateField<TextBox>("DescriptionTextBox", _window);
+            descriptionBox.Text = "Job description";
+
+            var expBox = GetPrivateField<TextBox>("ExperienceTextBox", _window);
+            expBox.Text = "5";
+
+            var comboBox = GetPrivateField<ComboBox>("AdTypeComboBox", _window);
+            comboBox.Items.Add(new ComboBoxItem { Tag = "1", Content = "Type1" });
+            comboBox.SelectedIndex = 0;
+
+            _window.SaveButton_Click(null, null);
+
+            var savedAd = _context.JobAds.FirstOrDefault(ad => ad.Title == "New Job");
+            Assert.IsNotNull(savedAd);
+            Assert.AreEqual(_testUser.Id, savedAd.UserId);
+            Assert.AreEqual("Job description", savedAd.Description);
+            Assert.AreEqual(5, savedAd.Experience);
+            Assert.AreEqual(AdType.Type1, savedAd.AdType);
+
+            Assert.IsTrue(_window.DialogResult == true);
         }
     }
 }
