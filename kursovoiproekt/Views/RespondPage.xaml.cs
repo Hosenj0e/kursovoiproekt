@@ -16,9 +16,6 @@ using kursovoiproekt.Models;
 
 namespace kursovoiproekt.Views
 {
-    /// <summary>
-    /// Логика взаимодействия для RespondPage.xaml
-    /// </summary>
     public partial class RespondPage : Page
     {
         private readonly JobAd _ad;
@@ -60,6 +57,96 @@ namespace kursovoiproekt.Views
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             NavigationService.GoBack();
+        }
+    }
+}
+
+
+namespace kursovoiproekt.Tests
+{
+    [TestFixture]
+    public class RespondPageTests
+    {
+        private LaborExchangeContext _context;
+        private RespondPage _page;
+        private JobAd _testAd;
+        private User _testUser;
+
+        [SetUp]
+        public void Setup()
+        {
+            var options = new DbContextOptionsBuilder<LaborExchangeContext>()
+                .UseInMemoryDatabase(databaseName: "TestLaborExchangeDb_Respond")
+                .Options;
+
+            _context = new LaborExchangeContext(options);
+
+            _context.Responses.RemoveRange(_context.Responses);
+            _context.JobAds.RemoveRange(_context.JobAds);
+            _context.Users.RemoveRange(_context.Users);
+            _context.SaveChanges();
+
+            _testAd = new JobAd { Id = 1, Title = "Test Job" };
+            _testUser = new User { Id = 1, Name = "Test User" };
+
+            _context.JobAds.Add(_testAd);
+            _context.Users.Add(_testUser);
+            _context.SaveChanges();
+
+            _page = new RespondPage(_testAd, _testUser);
+
+            var textBox = new TextBox();
+            var field = typeof(RespondPage).GetField("MessageTextBox", BindingFlags.NonPublic | BindingFlags.Instance);
+            field.SetValue(_page, textBox);
+
+            var navService = new FakeNavigationService();
+            var navField = typeof(Page).GetProperty("NavigationService", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+            navField.SetValue(_page, navService);
+        }
+
+        [Test]
+        public void Send_Click_EmptyMessage_ShowsWarning()
+        {
+            var msgBoxShown = false;
+            MessageBoxEventHandler handler = (s, e) => { msgBoxShown = true; };
+
+        
+
+            _page.MessageTextBox.Text = ""; 
+
+          
+
+            _page.Send_Click(null, null);
+
+            Assert.AreEqual(0, _context.Responses.Count());
+        }
+
+        [Test]
+        public void Send_Click_ValidMessage_AddsResponseAndNavigatesBack()
+        {
+            _page.MessageTextBox.Text = "Hello, I am interested";
+
+            var navService = new FakeNavigationService();
+            typeof(Page).GetProperty("NavigationService", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public)
+                .SetValue(_page, navService);
+
+            _page.Send_Click(null, null);
+
+            var response = _context.Responses.FirstOrDefault(r => r.JobAdId == _testAd.Id && r.ResponderId == _testUser.Id);
+            Assert.IsNotNull(response);
+            Assert.AreEqual("Hello, I am interested", response.Message);
+
+            Assert.IsTrue(navService.GoBackCalled);
+        }
+
+        private class FakeNavigationService : System.Windows.Navigation.NavigationService
+        {
+            public bool GoBackCalled { get; private set; } = false;
+
+            public override void GoBack()
+            {
+                GoBackCalled = true;
+            }
         }
     }
 }
